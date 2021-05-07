@@ -7,6 +7,7 @@ import ru.nsu.fit.planesApp.dto.AirportScheduleInboundDto;
 import ru.nsu.fit.planesApp.dto.AirportScheduleOutboundDto;
 import ru.nsu.fit.planesApp.dto.AvailableAirportsDto;
 import ru.nsu.fit.planesApp.dto.AvailableCitiesDto;
+import ru.nsu.fit.planesApp.dto.RouteDto;
 import ru.nsu.fit.planesApp.model.Flight;
 
 @Component
@@ -43,6 +44,15 @@ public class FlightMapper {
       .flightNo(flight.getFlightNo())
       .scheduledDeparture(flight.getScheduledDeparture())
       .dayOfWeek(simpleDateformat.format(flight.getScheduledDeparture()))
+      .build();
+  }
+
+  public RouteDto mapRoute(Flight flight) {
+    return RouteDto.builder()
+      .from(flight.getDepartureAirport())
+      .to(flight.getArrivalAirport())
+      .cityFrom(flight.getDepartureCity())
+      .cityTo(flight.getArrivalCity())
       .build();
   }
 }
