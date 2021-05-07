@@ -1,26 +1,23 @@
 package ru.nsu.fit.planesApp.service.impl;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import ru.nsu.fit.planesApp.dto.*;
+import ru.nsu.fit.planesApp.dto.mappers.FlightMapper;
+import ru.nsu.fit.planesApp.model.Airport;
+import ru.nsu.fit.planesApp.model.Flight;
+import ru.nsu.fit.planesApp.model.Price;
+import ru.nsu.fit.planesApp.repository.AirportRepository;
+import ru.nsu.fit.planesApp.repository.BookingRepository;
+import ru.nsu.fit.planesApp.repository.FlightRepository;
+import ru.nsu.fit.planesApp.repository.PriceRepository;
+import ru.nsu.fit.planesApp.service.FlightService;
+
 import java.sql.Date;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import ru.nsu.fit.planesApp.dto.AirportScheduleInboundDto;
-import ru.nsu.fit.planesApp.dto.AirportScheduleOutboundDto;
-import ru.nsu.fit.planesApp.dto.AvailableAirportsDto;
-import ru.nsu.fit.planesApp.dto.AvailableCitiesDto;
-import ru.nsu.fit.planesApp.dto.RouteDto;
-import ru.nsu.fit.planesApp.dto.mappers.FlightMapper;
-import ru.nsu.fit.planesApp.model.Flight;
-import ru.nsu.fit.planesApp.repository.BookingRepository;
-import ru.nsu.fit.planesApp.repository.FlightRepository;
-import ru.nsu.fit.planesApp.service.FlightService;
 
 @Service
 @RequiredArgsConstructor
@@ -29,24 +26,25 @@ public class FlightServiceImpl implements FlightService {
   private final FlightMapper mapper;
   private final Set<String> availableFlights = Set.of("Scheduled");
   private final BookingRepository bookingRepository;
+  private final PriceRepository priceRepository;
+  private final AirportRepository airportRepository;
 
   @Override
   public Set<AvailableAirportsDto> getAllAvailableAirports() {
     return flightRepository.findAllByStatusIn(availableFlights).stream()
-      .map(mapper::mapAirports).collect(Collectors.toSet());
+        .map(mapper::mapAirports).collect(Collectors.toSet());
   }
 
   @Override
   public Set<AvailableCitiesDto> getAllAvailableCities() {
     return flightRepository.findAllByStatusIn(availableFlights).stream()
-      .map(mapper::mapCities).collect(Collectors.toSet());
+        .map(mapper::mapCities).collect(Collectors.toSet());
   }
 
   @Override
   public List<AirportScheduleInboundDto> getInboundAirportFlights(String airport) {
-
     return flightRepository.findAllByArrivalAirport(airport).stream()
-      .map(mapper::mapInboundSchedule).collect(Collectors.toList());
+        .map(mapper::mapInboundSchedule).collect(Collectors.toList());
   }
 
   @Override
@@ -59,21 +57,26 @@ public class FlightServiceImpl implements FlightService {
 
     try {
       Date departureDate = new Date(simpleDateFormat.parse(date).getTime());
-      Calendar calendar = Calendar.getInstance();
-      calendar.setTime(departureDate);
-      calendar.add(Calendar.DAY_OF_MONTH, 1);
-      List<Flight> routeDtoList = innerStep(
-        new ArrayList<>(),
-        new ArrayList<>(),
-        0,
-        numberOfConn == null ? 999 : numberOfConn,
-        from,
-        to,
-        flightClass,
-        departureDate,
-        new Date(calendar.getTime().getTime())
-      );
-      assert routeDtoList != null;
+      List<List<Flight>> routes = new ArrayList<>();
+      Set<String> visited = new HashSet<>();
+      String city = from;
+      if (from.length() == 3 && from.chars().allMatch(Character::isUpperCase)) {
+        Airport airport = airportRepository.findFirstByAirportCode(from);
+        assert airport != null;
+        city = airport.getCity();
+      }
+      visited.add(city);
+      findRoutes(routes,
+          new LinkedList<>(),
+          visited,
+          numberOfConn,
+          city,
+          from,
+          to,
+          flightClass,
+          0,
+          departureDate
+          );
       return routeDtoList.stream().map(mapper::mapRoute).collect(Collectors.toList());
     } catch (ParseException e) {
       throw new RuntimeException(e);
@@ -88,69 +91,74 @@ public class FlightServiceImpl implements FlightService {
   @Override
   public List<AirportScheduleOutboundDto> getOutboundAirportFlights(String airport) {
     return flightRepository.findAllByDepartureAirport(airport).stream()
-      .map(mapper::mapOutboundSchedule).collect(Collectors.toList());
+        .map(mapper::mapOutboundSchedule).collect(Collectors.toList());
   }
 
-
-  private List<Flight> innerStep(List<Flight> given,
-                                 List<String> visited,
-                                 int iteration,
-                                 int maxIters,
-                                 String from,
-                                 String to,
-                                 String flightClass,
-                                 Date departureDate,
-                                 Date departureDatePlusOne
+  private void findRoutes(
+      List<List<Flight>> routes,
+      LinkedList<Flight> routeAccum,
+      Set<String> visited,
+      int maxIters,
+      String fromCity,
+      String from,
+      String to,
+      String flightClass,
+      Integer sum,
+      Date departureDate
   ) {
-    if (iteration > maxIters) {
-      return null;
+    if (visited.size() - 2 > maxIters) {
+      return;
     }
-    List<Flight> flights;
-    if (iteration == 0) {
-      if (from.length() == 3) {
-        flights = flightRepository.findAllByDepartureAirportAndScheduledDepartureBetween(
-          from,
-          departureDate,
-          departureDatePlusOne);
-      } else {
-        flights = flightRepository.findAllByDepartureCityAndScheduledDepartureBetween(
-          from,
-          departureDate,
-          departureDatePlusOne);
+    Calendar calendar = Calendar.getInstance();
+    calendar.setTime(departureDate);
+    calendar.add(Calendar.DAY_OF_MONTH, 1);
+    Date departureDatePlusOne = new Date(calendar.getTimeInMillis());
+    if (routeAccum.size() > 0) {
+      //noinspection ConstantConditions
+      if (routeAccum.peekLast().getArrivalAirport().equals(to)
+          || routeAccum.peekLast().getArrivalCity().equals(to)) {
+        routes.add(new ArrayList<>(routeAccum));
+        visited.remove(fromCity);
+        routeAccum.removeLast();
+        return;
       }
+    }
+    Set<Flight> flights;
+    if (from.length() == 3 && from.chars().allMatch(Character::isUpperCase)) {
+      flights = new HashSet<>(flightRepository.findByAirport(
+          from,
+          departureDate,
+          departureDatePlusOne));
     } else {
-      if (from.length() == 3) {
-        flights = flightRepository.findAllByDepartureAirport(from);
-      } else {
-        flights = flightRepository.findAllByDepartureCity(from);
-      }
-    }
-    for(Flight flight : flights) {
-      if (flight.getArrivalCity().equals(to) || flight.getArrivalAirport().equals(to)) {
-        given.add(flight);
-        return given;
-      }
-    }
-    for (Flight flight : flights) {
-      List<Flight> newFlights;
-      if (!visited.contains(flight.getArrivalCity())) {
-        given.add(flight);
-        visited.add(flight.getArrivalCity());
-        newFlights = innerStep(
-          given,
-          visited,
-          iteration + 1,
-          maxIters,
-          flight.getArrivalCity(),
-          to,
-          flightClass,
+      flights = new HashSet<>(flightRepository.findByCity(
+          from,
           departureDate,
-          departureDatePlusOne);
-        if (newFlights != null) return newFlights;
-        given.remove(flight);
-      }
+          departureDatePlusOne));
     }
-    return given;
+    flights.forEach(flight -> {
+      Price p = priceRepository.findPrice(
+          flight.getArrivalAirport(),
+          flight.getDepartureAirport(),
+          flightClass);
+      if (p != null) {
+        routeAccum.add(flight);
+        visited.add(flight.getArrivalCity());
+        innerStep(
+            routes,
+            routeAccum,
+            visited,
+            maxIters,
+            flight.getArrivalCity(),
+            flight.getArrivalCity(),
+            to,
+            flightClass,
+            sum + p.getMax(),
+            flight.getScheduledArrival()
+        );
+      }
+    });
+    routeAccum.removeLast();
+    visited.remove(fromCity);
   }
 
 }

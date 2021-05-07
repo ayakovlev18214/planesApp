@@ -35,7 +35,7 @@ public class BookingRepositoryImpl implements BookingRepository {
   public void bookRoute(Collection<RouteDto> route) {
     Calendar calendar = Calendar.getInstance();
     for (RouteDto routeDto : route) {
-      Map<String, Object> parameters = new HashMap<String, Object>();
+      Map<String, Object> parameters = new HashMap<>();
       parameters.put("book_ref", "_" + num);
       parameters.put("book_date", calendar.getTime());
       parameters.put("total_amount",  0); //TODO FIX

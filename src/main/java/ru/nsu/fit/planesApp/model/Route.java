@@ -1,13 +1,9 @@
 package ru.nsu.fit.planesApp.model;
 
-import java.util.List;
 import java.util.Set;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
-import javax.persistence.Entity;
-import javax.persistence.Id;
 import javax.persistence.JoinColumn;
-import javax.persistence.JoinTable;
 import javax.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,25 +20,25 @@ public class Route {
   @JoinColumn(name = "flight_no")
   private Flight flight;
 
-  @Column(name = "days_of_week")
+  @Column(name = "departure_airport")
   private String departureAirport;
 
-  @Column(name = "days_of_week")
+  @Column(name = "departure_airport_name")
   private String departureAirportName;
 
-  @Column(name = "days_of_week")
+  @Column(name = "departure_city")
   private String departureCity;
 
-  @Column(name = "days_of_week")
+  @Column(name = "arrival_airport")
   private String arrivalAirport;
 
-  @Column(name = "days_of_week")
+  @Column(name = "arrival_airport_name")
   private String arrivalAirportName;
 
-  @Column(name = "days_of_week")
+  @Column(name = "arrival_city")
   private String arrivalCity;
 
-  @Column(name = "days_of_week")
+  @Column(name = "aircraft_code")
   private String aircraftCode;
 
   @ElementCollection
