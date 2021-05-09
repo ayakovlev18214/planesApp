@@ -1,8 +1,10 @@
 package ru.nsu.fit.planesApp.repository;
 
-import java.util.Collection;
+import org.springframework.data.jpa.repository.Query;
 import ru.nsu.fit.planesApp.dto.RouteDto;
 
 public interface BookingRepository {
-  void bookRoute(Collection<RouteDto> route);
+  void bookRoute(RouteDto route, String personName);
+
+  void checkIn(String ticketNum, Integer flightId);
 }
